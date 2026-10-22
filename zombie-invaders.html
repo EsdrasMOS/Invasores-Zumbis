@@ -1,0 +1,858 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Invasores Zumbis</title>
+  <style>
+    :root{
+      --bg:#06070a;
+      --panel: rgba(20, 24, 34, 0.78);
+      --text:#e8ecff;
+      --muted:#aeb6da;
+      --accent:#4fe3a3;
+      --danger:#ff4d6d;
+      --stroke: rgba(255,255,255,0.12);
+    }
+
+    html, body{
+      height:100%;
+      margin:0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
+      background: radial-gradient(1200px 700px at 50% 10%, #0f1530 0%, var(--bg) 55%, #020207 100%);
+      color: var(--text);
+      overflow:hidden;
+      user-select: none; 
+    }
+
+    .wrap{
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+    }
+
+    canvas{
+      width:100%;
+      height:100%;
+      display:block;
+      image-rendering: crisp-edges;
+      background: transparent;
+      cursor: crosshair;
+    }
+
+    .ui-layer{
+      position:absolute;
+      inset:0;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      pointer-events:none;
+      padding: 16px;
+    }
+
+    .panel{
+      pointer-events:auto;
+      width: min(720px, 92vw);
+      background: var(--panel);
+      border: 1px solid var(--stroke);
+      border-radius: 14px;
+      padding: 18px 18px 16px;
+      box-shadow: 0 10px 45px rgba(0,0,0,0.35);
+      backdrop-filter: blur(6px);
+    }
+
+    .title{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      margin-bottom: 10px;
+    }
+
+    .title h1{
+      margin:0;
+      font-size: clamp(22px, 3.2vw, 34px);
+      letter-spacing: 0.5px;
+    }
+
+    .badge{
+      font-size: 12px;
+      color: #0c1b14;
+      background: var(--accent);
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-weight: 700;
+      white-space:nowrap;
+    }
+
+    .content{
+      color: var(--muted);
+      line-height: 1.5;
+      font-size: 14px;
+    }
+
+    .kbox{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      flex-wrap:wrap;
+      margin-top: 12px;
+      color: var(--text);
+    }
+
+    .key{
+      font-weight: 800;
+      padding: 4px 10px;
+      border-radius: 10px;
+      border: 1px solid var(--stroke);
+      background: rgba(255,255,255,0.06);
+      color: var(--text);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.05);
+    }
+
+    .actions{
+      display:flex;
+      gap:10px;
+      margin-top: 16px;
+      flex-wrap:wrap;
+    }
+
+    button{
+      cursor:pointer;
+      border: 1px solid var(--stroke);
+      background: rgba(255,255,255,0.06);
+      color: var(--text);
+      padding: 10px 14px;
+      border-radius: 12px;
+      font-weight: 800;
+      transition: transform .08s ease, background .15s ease, border-color .15s ease;
+    }
+
+    button:hover{
+      background: rgba(255,255,255,0.1);
+      border-color: rgba(255,255,255,0.18);
+    }
+
+    button:active{
+      transform: translateY(1px);
+    }
+
+    button.primary{
+      background: rgba(79, 227, 163, 0.18);
+      border-color: rgba(79, 227, 163, 0.35);
+    }
+
+    .hud{
+      position:absolute;
+      top: 14px;
+      left: 14px;
+      right: 14px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap: 10px;
+      pointer-events:none;
+    }
+
+    .hud .score{
+      background: rgba(20, 24, 34, 0.55);
+      border: 1px solid var(--stroke);
+      border-radius: 12px;
+      padding: 10px 12px;
+      font-weight: 900;
+      letter-spacing: .3px;
+    }
+
+    .hud .status{
+      background: rgba(20, 24, 34, 0.55);
+      border: 1px solid var(--stroke);
+      border-radius: 12px;
+      padding: 10px 12px;
+      font-weight: 900;
+      color: var(--muted);
+    }
+
+    .pause-toast{
+      position:absolute;
+      inset:0;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      pointer-events:none;
+      opacity:0;
+      transform: scale(0.98);
+      transition: opacity .15s ease, transform .15s ease;
+    }
+
+    .pause-toast.show{
+      opacity:1;
+      transform: scale(1);
+    }
+
+    .pause-toast .msg{
+      background: rgba(10, 12, 18, 0.75);
+      border: 1px solid rgba(255,255,255,0.16);
+      border-radius: 14px;
+      padding: 14px 18px;
+      text-align:center;
+      box-shadow: 0 10px 45px rgba(0,0,0,0.35);
+    }
+
+    .pause-toast .msg strong{
+      color: var(--accent);
+      font-size: 22px;
+      display:block;
+      margin-bottom: 6px;
+    }
+
+    .pause-toast .msg span{
+      color: var(--muted);
+      font-weight: 700;
+      font-size: 13px;
+    }
+
+    /* Efeito de flash vermelho ao morrer (Etapa 5) */
+    .death-flash{
+      position:absolute;
+      inset:0;
+      background: radial-gradient(circle at center, rgba(255,77,109,0.4) 0%, rgba(255,77,109,0.1) 50%, transparent 100%);
+      pointer-events:none;
+      opacity:0;
+      transition: opacity 0.1s ease-out;
+    }
+
+    .death-flash.active{
+      opacity:1;
+      animation: flashFade 0.5s ease-out forwards;
+    }
+
+    @keyframes flashFade{
+      0% { opacity: 1; }
+      100% { opacity: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <canvas id="game" aria-label="Jogo Invasores Zumbis"></canvas>
+
+    <!-- Efeito de flash ao morrer -->
+    <div class="death-flash" id="deathFlash"></div>
+
+    <div class="hud" aria-hidden="true">
+      <div class="score">Pontuação: <span id="score">0</span></div>
+      <div class="status" id="status">Pronto • Aperte F1 ou clique em Jogar</div>
+    </div>
+
+    <div class="ui-layer" id="overlay">
+      <div class="panel" id="panelMenu">
+        <div class="title">
+          <h1>👾 Invasores Zumbis</h1>
+          <div class="badge">HTML • CSS • JS</div>
+        </div>
+
+        <div class="content">
+          <div><strong>Como jogar:</strong></div>
+          <ul style="margin:10px 0 0 18px; padding:0;">
+            <li>🧟 Zumbis aparecem e tentam chegar ao centro.</li>
+            <li>🖱️ Clique com o <strong>botão direito</strong> para atirar na direção do cursor.</li>
+            <li>🎯 Se acertar, o zumbi morre instantaneamente.</li>
+            <li>⏸️ Pausa: tecla <strong>P</strong>.</li>
+          </ul>
+
+          <div class="kbox">
+            <span class="key">F1</span> <span style="color:var(--muted); font-weight:800;">Iniciar</span>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button class="primary" id="btnStart">Jogar (F1)</button>
+        </div>
+      </div>
+
+      <div class="panel" id="panelGameOver" style="display:none;">
+        <div class="title">
+          <h1>💀 Fim de jogo</h1>
+          <div class="badge" style="background: var(--danger); color:#1a0a0f;">Game Over</div>
+        </div>
+
+        <div class="content">
+          <div style="font-size:18px; color: var(--text); font-weight: 900; margin-top:6px;">
+            Pontuação final: <span id="finalScore">0</span>
+          </div>
+          <div style="margin-top:10px;">Tente novamente!</div>
+          <div class="kbox" style="margin-top:12px;">
+            <span class="key">F1</span> <span style="color:var(--muted); font-weight:800;">Reiniciar</span>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button class="primary" id="btnRestart">Reiniciar (F1)</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="pause-toast" id="pauseToast">
+      <div class="msg">
+        <strong>⏸️ Pausado</strong>
+        <span>Aperte P para continuar</span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // =========================
+    // INVASORES ZUMBIS - JOGO COMPLETO
+    // Desenvolvido em HTML5, CSS3 e JavaScript puro
+    // =========================
+
+    // ===== REFERÊNCIAS DO DOM =====
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+
+    const scoreEl = document.getElementById('score');
+    const finalScoreEl = document.getElementById('finalScore');
+    const statusEl = document.getElementById('status');
+
+    const overlay = document.getElementById('overlay');
+    const panelMenu = document.getElementById('panelMenu');
+    const panelGameOver = document.getElementById('panelGameOver');
+
+    const btnStart = document.getElementById('btnStart');
+    const btnRestart = document.getElementById('btnRestart');
+
+    const pauseToast = document.getElementById('pauseToast');
+    const deathFlash = document.getElementById('deathFlash');
+
+    // ===== CONSTANTES DO JOGO =====
+    const GameState = {
+      MENU: 'menu',
+      PLAYING: 'playing',
+      GAME_OVER: 'game_over'
+    };
+
+    // ===== VARIÁVEIS DE ESTADO =====
+    let state = GameState.MENU;
+    let isPaused = false;
+    let score = 0;
+
+    // ===== REDIMENSIONAMENTO DO CANVAS =====
+    // Ajusta o canvas para preencher a tela com suporte a alta resolução (Retina)
+    function resizeCanvas() {
+      const dpr = Math.max(1, window.devicePixelRatio || 1);
+      const w = Math.floor(window.innerWidth);
+      const h = Math.floor(window.innerHeight);
+      canvas.width = Math.floor(w * dpr);
+      canvas.height = Math.floor(h * dpr);
+      canvas.style.width = w + 'px';
+      canvas.style.height = h + 'px';
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    // =========================
+    // CLASSES DO JOGO
+    // =========================
+    
+    // Classe Tiro: Projétil disparado pelo jogador
+    class Tiro {
+      constructor(x, y, angle) {
+        this.x = x;
+        this.y = y;
+        this.speed = 900; // Velocidade em pixels por segundo
+        this.vx = Math.cos(angle) * this.speed;
+        this.vy = Math.sin(angle) * this.speed;
+        this.radius = 4;
+        this.active = true;
+      }
+
+      update(dt) {
+        // Move o projétil com base na velocidade e no delta de tempo
+        this.x += this.vx * dt;
+        this.y += this.vy * dt;
+
+        // Desativa o tiro se sair dos limites da tela (evita vazamento de memória)
+        if (this.x < 0 || this.x > canvas.clientWidth || this.y < 0 || this.y > canvas.clientHeight) {
+          this.active = false;
+        }
+      }
+
+      draw(ctx) {
+        ctx.save();
+        ctx.fillStyle = '#4fe3a3'; // Cor verde (accent)
+        ctx.shadowColor = '#4fe3a3';
+        ctx.shadowBlur = 12; // Efeito de brilho
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Rastro para dar sensação de velocidade
+        ctx.globalAlpha = 0.4;
+        ctx.beginPath();
+        ctx.arc(this.x - this.vx * 0.015, this.y - this.vy * 0.015, this.radius * 0.7, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+
+    // Classe Zumbi: Inimigo que persegue o jogador
+    class Zumbi {
+      constructor(centerX, centerY, canvasWidth, canvasHeight, difficultyMultiplier) {
+        this.radius = 14;
+        // Velocidade aumenta conforme a dificuldade
+        this.speed = (70 + (difficultyMultiplier * 8)); 
+        
+        // Spawn nas bordas: posição aleatória fora da tela
+        const angle = Math.random() * Math.PI * 2;
+        const spawnDistance = (Math.max(canvasWidth, canvasHeight) / 2) + 60;
+        
+        this.x = centerX + Math.cos(angle) * spawnDistance;
+        this.y = centerY + Math.sin(angle) * spawnDistance;
+        
+        this.active = true;
+      }
+
+      update(dt, centerX, centerY) {
+        // Calcula direção em direção ao centro (jogador)
+        const dx = centerX - this.x;
+        const dy = centerY - this.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+
+        // Normaliza o vetor e aplica velocidade
+        if (distance > 0) {
+          this.x += (dx / distance) * this.speed * dt;
+          this.y += (dy / distance) * this.speed * dt;
+        }
+      }
+
+      draw(ctx, centerX, centerY) {
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        
+        // Rotaciona para os olhos apontarem para o centro
+        const angleToCenter = Math.atan2(centerY - this.y, centerX - this.x);
+        ctx.rotate(angleToCenter);
+
+        // Corpo do zumbi (verde escuro com borda verde claro)
+        ctx.fillStyle = '#2d5a2d';
+        ctx.strokeStyle = '#5cdb5c';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        // Olhos vermelhos (indicam direção do movimento)
+        ctx.fillStyle = '#ff4d6d'; // Cor vermelha (danger)
+        ctx.shadowColor = '#ff4d6d';
+        ctx.shadowBlur = 6;
+        
+        ctx.beginPath();
+        ctx.arc(6, -5, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+        
+        ctx.beginPath();
+        ctx.arc(6, 5, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.restore();
+      }
+    }
+
+    // Classe Partícula: Efeito visual de explosão ao eliminar zumbi
+    class Particula {
+      constructor(x, y, color) {
+        this.x = x;
+        this.y = y;
+        this.vx = (Math.random() - 0.5) * 200;
+        this.vy = (Math.random() - 0.5) * 200;
+        this.radius = Math.random() * 3 + 2;
+        this.color = color;
+        this.life = 1.0; // 1.0 = vivo, 0.0 = morto
+        this.decay = 1.5; // Velocidade de desaparecimento
+      }
+
+      update(dt) {
+        this.x += this.vx * dt;
+        this.y += this.vy * dt;
+        this.life -= this.decay * dt;
+      }
+
+      draw(ctx) {
+        if (this.life <= 0) return;
+        
+        ctx.save();
+        ctx.globalAlpha = this.life;
+        ctx.fillStyle = this.color;
+        ctx.shadowColor = this.color;
+        ctx.shadowBlur = 8;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+
+    // =========================
+    // ESTADO DO JOGO
+    // =========================
+    const game = {
+      centerX: 0,
+      centerY: 0,
+      zombies: [],
+      shots: [],
+      particles: [],
+      spawnTimer: 0,
+      difficultyLevel: 1,
+      alive: true,
+      playerRadius: 18 // Raio do personagem (jogador)
+    };
+
+    function resetGameModel() {
+      game.zombies = [];
+      game.shots = [];
+      game.particles = [];
+      game.spawnTimer = 0;
+      game.difficultyLevel = 1;
+      game.alive = true;
+    }
+
+    function updateCenter() {
+      game.centerX = canvas.clientWidth / 2;
+      game.centerY = canvas.clientHeight / 2;
+    }
+
+    // =========================
+    // FUNÇÕES DE UI E ESTADO
+    // =========================
+    function showMenu() {
+      overlay.style.display = 'flex';
+      panelMenu.style.display = '';
+      panelGameOver.style.display = 'none';
+      statusEl.textContent = 'Pronto • Aperte F1 ou clique em Jogar';
+    }
+
+    function showGameOver() {
+      overlay.style.display = 'flex';
+      panelMenu.style.display = 'none';
+      panelGameOver.style.display = '';
+      statusEl.textContent = 'Fim • Aperte F1 para reiniciar';
+    }
+
+    function togglePause() {
+      if (state !== GameState.PLAYING) return;
+      isPaused = !isPaused;
+      pauseToast.classList.toggle('show', isPaused);
+      statusEl.textContent = isPaused
+        ? 'Pausado • Aperte P para continuar'
+        : 'Jogando • Clique com botão direito para atirar • P para pausar';
+    }
+
+    function startGame() {
+      score = 0;
+      scoreEl.textContent = String(score);
+      isPaused = false;
+      pauseToast.classList.remove('show');
+
+      resetGameModel();
+      updateCenter();
+
+      state = GameState.PLAYING;
+      overlay.style.display = 'none';
+      statusEl.textContent = 'Jogando • Clique com botão direito para atirar • P para pausar';
+    }
+
+    function gameOver() {
+      if (state !== GameState.PLAYING) return;
+      state = GameState.GAME_OVER;
+      game.alive = false;
+
+      // Ativa efeito de flash vermelho (Etapa 5)
+      deathFlash.classList.add('active');
+      setTimeout(() => deathFlash.classList.remove('active'), 500);
+
+      finalScoreEl.textContent = String(score);
+      showGameOver();
+    }
+
+    function restartGame() {
+      startGame();
+    }
+
+    // =========================
+    // CONTROLES E ENTRADA (INPUT)
+    // =========================
+    const input = {
+      mouseX: 0,
+      mouseY: 0
+    };
+
+    function getMousePos(evt) {
+      const rect = canvas.getBoundingClientRect();
+      return {
+        x: (evt.clientX - rect.left),
+        y: (evt.clientY - rect.top)
+      };
+    }
+
+    // Atualiza posição do mouse
+    canvas.addEventListener('mousemove', (e) => {
+      const p = getMousePos(e);
+      input.mouseX = p.x;
+      input.mouseY = p.y;
+    });
+
+    // Previne menu de contexto do navegador
+    canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+    // Disparo com botão direito do mouse
+    canvas.addEventListener('mousedown', (e) => {
+      if (e.button === 2) { 
+        e.preventDefault();
+        if (state === GameState.PLAYING && !isPaused) {
+          // Calcula ângulo entre centro e cursor
+          const dx = input.mouseX - game.centerX;
+          const dy = input.mouseY - game.centerY;
+          const angle = Math.atan2(dy, dx);
+          
+          // Cria novo tiro
+          game.shots.push(new Tiro(game.centerX, game.centerY, angle));
+        }
+      }
+    });
+
+    // Controles de teclado
+    window.addEventListener('keydown', (e) => {
+      // F1: Iniciar ou reiniciar
+      if (e.key === 'F1') {
+        e.preventDefault();
+        if (state === GameState.MENU) startGame();
+        else if (state === GameState.GAME_OVER) restartGame();
+      }
+      // P: Pausar/continuar
+      if (e.key === 'p' || e.key === 'P') {
+        e.preventDefault();
+        togglePause();
+      }
+    });
+
+    // Botões da interface
+    btnStart.addEventListener('click', () => startGame());
+    btnRestart.addEventListener('click', () => restartGame());
+
+    // =========================
+    // RENDERIZAÇÃO
+    // =========================
+    function drawBackground() {
+      const t = performance.now() * 0.001;
+      const w = canvas.clientWidth;
+      const h = canvas.clientHeight;
+
+      ctx.clearRect(0, 0, w, h);
+
+      // Gradiente de fundo
+      const g = ctx.createLinearGradient(0, 0, 0, h);
+      g.addColorStop(0, '#08102b');
+      g.addColorStop(0.5, '#04050a');
+      g.addColorStop(1, '#020207');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, w, h);
+
+      // Estrelas de fundo (efeito de profundidade)
+      ctx.save();
+      ctx.globalAlpha = 0.65;
+      for (let i = 0; i < 70; i++) {
+        const x = (i * 97) % w;
+        const y = (i * 193) % h;
+        const r = (i % 3) + 0.4;
+        const flicker = 0.35 + 0.65 * Math.sin(t * (0.7 + (i % 7) * 0.12) + i);
+        ctx.fillStyle = `rgba(180,200,255,${0.18 * flicker})`;
+        ctx.beginPath();
+        ctx.arc(x, (y + t * 12 * (i % 4 + 1)) % h, r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+
+      // Personagem (centro da tela)
+      ctx.save();
+      ctx.translate(game.centerX, game.centerY);
+
+      ctx.globalAlpha = 0.85;
+      ctx.strokeStyle = 'rgba(79, 227, 163, 0.25)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(0, 0, game.playerRadius, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Cruz de mira
+      ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+      ctx.beginPath();
+      ctx.moveTo(-26, 0); ctx.lineTo(26, 0);
+      ctx.moveTo(0, -26); ctx.lineTo(0, 26);
+      ctx.stroke();
+
+      // Linha de mira sutil (apenas durante o jogo)
+      if (state === GameState.PLAYING && !isPaused) {
+        const dx = input.mouseX - game.centerX;
+        const dy = input.mouseY - game.centerY;
+        const angle = Math.atan2(dy, dx);
+        ctx.strokeStyle = 'rgba(79, 227, 163, 0.15)';
+        ctx.setLineDash([4, 8]);
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(Math.cos(angle) * 40, Math.sin(angle) * 40);
+        ctx.stroke();
+      }
+
+      ctx.restore();
+    }
+
+    function drawWorld() {
+      // Renderiza partículas (efeitos visuais)
+      for (const particle of game.particles) {
+        particle.draw(ctx);
+      }
+
+      // Renderiza zumbis
+      for (const zombie of game.zombies) {
+        zombie.draw(ctx, game.centerX, game.centerY);
+      }
+
+      // Renderiza tiros
+      for (const shot of game.shots) {
+        shot.draw(ctx);
+      }
+    }
+
+    // =========================
+    // ATUALIZAÇÃO (LÓGICA DO JOGO)
+    // =========================
+    function update(dt) {
+      if (state !== GameState.PLAYING || isPaused) return;
+
+      // Aumenta dificuldade gradualmente
+      game.difficultyLevel += dt * 0.05;
+      game.spawnTimer += dt;
+
+      // Spawn de zumbis (intervalo diminui com a dificuldade)
+      const spawnInterval = Math.max(0.25, 1.8 - (game.difficultyLevel * 0.15));
+      
+      if (game.spawnTimer >= spawnInterval) {
+        game.zombies.push(new Zumbi(
+          game.centerX, 
+          game.centerY, 
+          canvas.clientWidth, 
+          canvas.clientHeight, 
+          game.difficultyLevel
+        ));
+        game.spawnTimer = 0;
+      }
+
+      // Atualiza zumbis
+      for (const zombie of game.zombies) {
+        zombie.update(dt, game.centerX, game.centerY);
+      }
+
+      // Atualiza tiros e remove os que saíram da tela
+      for (let i = game.shots.length - 1; i >= 0; i--) {
+        const shot = game.shots[i];
+        shot.update(dt);
+        if (!shot.active) {
+          game.shots.splice(i, 1);
+        }
+      }
+
+      // Atualiza partículas e remove as que expiraram
+      for (let i = game.particles.length - 1; i >= 0; i--) {
+        const particle = game.particles[i];
+        particle.update(dt);
+        if (particle.life <= 0) {
+          game.particles.splice(i, 1);
+        }
+      }
+
+      // ===== COLISÕES =====
+      
+      // 1. Colisão Tiro x Zumbi
+      for (let i = game.shots.length - 1; i >= 0; i--) {
+        const shot = game.shots[i];
+        if (!shot.active) continue;
+
+        for (let j = game.zombies.length - 1; j >= 0; j--) {
+          const zombie = game.zombies[j];
+          if (!zombie.active) continue;
+
+          // Calcula distância entre tiro e zumbi
+          const dx = shot.x - zombie.x;
+          const dy = shot.y - zombie.y;
+          const distance = Math.sqrt(dx * dx + dy * dy);
+
+          // Detecta colisão (distância < soma dos raios)
+          if (distance < shot.radius + zombie.radius) {
+            shot.active = false;
+            zombie.active = false;
+
+            // Cria partículas de explosão (efeito visual)
+            for (let k = 0; k < 8; k++) {
+              game.particles.push(new Particula(zombie.x, zombie.y, '#5cdb5c'));
+            }
+            for (let k = 0; k < 4; k++) {
+              game.particles.push(new Particula(zombie.x, zombie.y, '#ff4d6d'));
+            }
+
+            // Aumenta pontuação
+            score += 1;
+            scoreEl.textContent = String(score);
+
+            // Remove zumbi
+            game.zombies.splice(j, 1);
+            break;
+          }
+        }
+
+        // Remove tiro se colidiu
+        if (!shot.active) {
+          game.shots.splice(i, 1);
+        }
+      }
+
+      // 2. Colisão Zumbi x Jogador (Game Over)
+      for (const zombie of game.zombies) {
+        const dx = zombie.x - game.centerX;
+        const dy = zombie.y - game.centerY;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+
+        // Se zumbi alcançou o jogador
+        if (distance < zombie.radius + game.playerRadius) {
+          gameOver();
+          return;
+        }
+      }
+    }
+
+    // =========================
+    // LOOP PRINCIPAL
+    // =========================
+    let lastTime = performance.now();
+    function loop(now) {
+      const dt = Math.min(0.05, (now - lastTime) / 1000);
+      lastTime = now;
+
+      if (state === GameState.PLAYING) {
+        updateCenter();
+      }
+
+      update(dt);
+      drawBackground();
+      drawWorld();
+
+      requestAnimationFrame(loop);
+    }
+
+    // Inicia o loop do jogo
+    requestAnimationFrame(loop);
+    showMenu();
+  </script>
+</body>
+</html>
